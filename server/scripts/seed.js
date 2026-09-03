@@ -1,0 +1,2 @@
+require('dotenv').config();const mongoose=require('mongoose');const bcrypt=require('bcryptjs');const User=require('../models/User');
+(async()=>{await mongoose.connect(process.env.MONGO_URI);const password=await bcrypt.hash('Admin@123',12);await User.findOneAndUpdate({email:'hr@example.com'},{name:'HR Manager',email:'hr@example.com',password,role:'hr'},{upsert:true,new:true});console.log('HR account: hr@example.com / Admin@123');await mongoose.disconnect()})().catch(e=>{console.error(e);process.exit(1)});

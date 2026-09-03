@@ -1,0 +1,11 @@
+const express=require('express');const Attendance=require('../models/Attendance');const {auth}=require('../middleware/auth');
+const router=express.Router();
+const day=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+function calc(a){if(!a.checkIn||!a.checkOut)return 0;return Math.max(0,Math.round((new Date(a.checkOut)-new Date(a.checkIn))/60000));}
+router.get('/today',auth,async(req,res)=>{let a=await Attendance.findOne({employee:req.user._id,date:day()});res.json({attendance:a});});
+router.post('/check-in',auth,async(req,res)=>{let a=await Attendance.findOne({employee:req.user._id,date:day()});if(a?.checkIn)return res.status(400).json({message:'Already checked in today'});if(!a)a=await Attendance.create({employee:req.user._id,date:day(),checkIn:new Date(),status:new Date().getHours()>=10?'Late':'Present'});else{a.checkIn=new Date();a.status=new Date().getHours()>=10?'Late':'Present';await a.save()}res.json({attendance:a});});
+router.post('/check-out',auth,async(req,res)=>{const a=await Attendance.findOne({employee:req.user._id,date:day()});if(!a?.checkIn)return res.status(400).json({message:'Check in first'});if(a.checkOut)return res.status(400).json({message:'Already checked out'});a.checkOut=new Date();a.workingMinutes=calc(a);await a.save();res.json({attendance:a});});
+router.get('/mine',auth,async(req,res)=>{const rows=await Attendance.find({employee:req.user._id}).sort({date:-1});res.json({attendance:rows});});
+router.get('/all',auth,async(req,res)=>{if(req.user.role!=='hr')return res.status(403).json({message:'HR access required'});const rows=await Attendance.find().populate('employee','name email').sort({date:-1});res.json({attendance:rows});});
+router.post('/mark',auth,async(req,res)=>{if(req.user.role!=='hr')return res.status(403).json({message:'HR access required'});const{employeeId,date,status}=req.body;if(!employeeId||!date||!['Absent','Leave'].includes(status))return res.status(400).json({message:'Invalid status data'});const d=new Date(date);d.setHours(0,0,0,0);const a=await Attendance.findOneAndUpdate({employee:employeeId,date:d},{$set:{status,checkIn:null,checkOut:null,workingMinutes:0}},{new:true,upsert:true});res.json({attendance:a});});
+module.exports=router;
